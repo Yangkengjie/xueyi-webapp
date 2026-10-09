@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <!-- 中医AI规划师 · 寥寥几笔手绘涂鸦 -->
+  <g fill="none" stroke="#266636" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+    <!-- 脸轮廓 -->
+    <path d="M74 60 C60 58 53 76 56 92 C58 108 70 122 88 124 C104 126 120 120 128 106 C134 90 132 68 122 58 C112 48 88 48 74 60 Z"/>
+    <!-- 齐耳短发 -->
+    <path d="M64 62 C66 48 84 42 100 42 C116 42 130 48 134 60"/>
+    <path d="M74 56 C78 50 84 48 88 50"/>
+    <path d="M96 48 C100 46 106 46 110 50"/>
+    <!-- 眼镜 -->
+    <path d="M72 84 C66 82 64 90 68 94 C72 98 80 95 79 89 C78 84 76 83 72 84"/>
+    <path d="M114 84 C120 82 122 90 118 94 C114 98 106 95 107 89 C108 84 111 83 114 84"/>
+    <path d="M80 90 C86 93 94 93 98 90"/>
+    <!-- 眼睛 -->
+    <path d="M74 89 L77 89"/>
+    <path d="M111 89 L114 89"/>
+    <!-- 微笑 -->
+    <path d="M82 110 C88 114 100 114 106 109"/>
+    <!-- 肩线 -->
+    <path d="M56 156 C74 142 92 138 100 138 C108 138 126 144 144 156"/>
+  </g>
+  <!-- 中式立领（深绿点缀） -->
+  <g fill="none" stroke="#266636" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+    <path d="M96 138 C95 130 96 124 100 122"/>
+    <path d="M104 138 C105 130 104 124 100 122"/>
+  </g>
+  <circle cx="100" cy="146" r="3" fill="#266636"/>
+  <!-- 名称 -->
+  <text x="100" y="182" text-anchor="middle" font-family="STKaiti, KaiTi, 'Noto Serif SC', serif" font-size="22" font-weight="600" fill="#266636" letter-spacing="4">规划师</text>
+</svg>

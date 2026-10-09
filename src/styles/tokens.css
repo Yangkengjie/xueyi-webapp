@@ -1,0 +1,81 @@
+/* ============================================================
+ * 学医智用 · 设计令牌（Design Tokens）
+ * 来源：WebApp参考/*.png + UI参数.docx（2026-08-13 校准）
+ * v40 新增别名：--color-text / --color-bg-card / --color-border-light / --color-border
+ * ============================================================ */
+
+:root {
+  /* ---- 品牌色（UI参数【8】） ---- */
+  --color-primary: #266636;          /* 最深绿：主按钮 / 选中态 / 进度 */
+  --color-primary-strong: #1d5029;   /* 深绿·按压态（派生） */
+  --color-primary-tint: #eef5f3;     /* 最浅绿：强调卡片底 / 进度条底 */
+  --color-primary-muted: #74a17f;    /* 中间绿：首页弱化柱、次级元素 */
+
+  /* ---- 辅助色 ---- */
+  --color-accent-blue: #3e5f9e;      /* 学习历程图表蓝 / 图谱主节点 */
+  --color-accent-blue-tint: #e9eef7;
+  --color-graph-blue: #4b8fd6;       /* 知识图谱节点·蓝 */
+  --color-graph-orange: #e59a4b;     /* 知识图谱节点·橙 */
+  --color-graph-green: #a9d6a4;      /* 知识图谱节点·绿 */
+  --color-wx-green: #07c160;         /* 微信主按钮绿（授权弹层等） */
+
+  /* ---- 中性色（UI参数【8】） ---- */
+  --color-bg: #f5f5f5;               /* 非白浅灰页面背景 */
+  --color-card: #ffffff;
+  --color-bg-card: #ffffff;          /* v40 别名：与 --color-card 等价 */
+  --color-divider: #eeeeec;          /* 分隔线（派生） */
+  --color-border: #eeeeec;           /* v40 别名 */
+  --color-border-light: #eeeeee;     /* v40 细边框 */
+  --color-input-bg: #f5f5f5;         /* 搜索框 / 评论框 / 输入框灰 */
+
+  /* ---- 文字（UI参数【10】） ---- */
+  --color-text: #000000;             /* v40 主文字色（等同于 --color-text） */
+  --color-text-primary: #000000;     /* 主文字 */
+  --color-text-secondary: #666666;   /* 派生：次级说明 */
+  --color-text-caption: #a6a6a6;     /* 灰色字体 */
+  --color-text-inverse: #ffffff;
+
+  /* ---- 字体（UI参数【10】） ---- */
+  --font-family: "Source Han Sans SC", "Noto Sans SC", "思源黑体",
+    -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-family-serif: "Source Han Serif SC", "Noto Serif SC", "思源宋体", serif;
+  --font-size-caption: 10px;         /* 小字 */
+  --font-size-body: 14px;            /* 正文 */
+  --font-size-section: 15px;         /* 小节标题 */
+  --font-size-title: 16px;           /* 卡片标题（派生） */
+  --font-size-nav: 20px;             /* 标题栏 */
+  --font-size-display: 20px;         /* 大数字 */
+
+  /* ---- 圆角（UI参数【6】） ---- */
+  --radius-sm: 8px;
+  --radius-card: 12px;               /* 一般圆角 */
+  --radius-toggle-outer: 20px;       /* 学习/备考模式 外框 */
+  --radius-toggle-inner: 16px;       /* 学习/备考模式 内框 */
+  --radius-bar: 20px;                /* 大纲页底部搜索栏 */
+  --radius-pill: 999px;
+
+  /* ---- 阴影（UI参数：DBD7D7 X0 Y2 模糊16） ---- */
+  --shadow-card: 0 2px 16px #dbd7d7;
+  --shadow-pop: 0 2px 16px #dbd7d7;
+
+  /* ---- 布局（UI参数【18】【7】） ---- */
+  --page-width: 375px;               /* 设计稿宽 */
+  --nav-height: 44px;                /* 上部 44(状态栏)+44(导航)=88 */
+  --tabbar-height: 50px;             /* 下部 24+50=74 */
+  --page-padding: 24px;              /* 左右间距（卡片宽 375-48=327） */
+  --card-padding: 14px;
+  --card-gap: 36px;                  /* 不相连卡片上下间距 */
+  --icon-gap-sm: 15px;               /* 小图标间隔 */
+  --icon-gap-lg: 74px;               /* 大图标间隔 */
+  --icon-text-gap: 8px;              /* 图标与文本 */
+
+  /* ---- 图标尺寸（UI参数【11】） ---- */
+  --icon-sm: 15px;                   /* 点赞/收藏/添加等小按钮 */
+  --icon-lg: 22px;                   /* TabBar / 工具栏大图标 */
+  --touch-sm: 22px;                  /* 小按钮触屏区域 */
+  --touch-lg: 44px;                  /* 大图标触屏区域 */
+
+  /* ---- 安全区 ---- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
