@@ -211,6 +211,7 @@ import {
   buildUserContextFromLocal,
   callEnhanceServerStream,
   callEnhanceServer,
+  waitForEngineReady,
 } from "../api/promptEngine";
 
 /* 追问时沿用用户上次勾选的输出模式（localStorage 存 A-I 键） */
@@ -334,8 +335,9 @@ async function generateReply(question, images = [], modes, replaceAssistantId = 
       );
       if (ok && engineData) break;
       if (attempt === 0) {
-        thinkingText.value = "云端引擎休眠中，正在自动唤醒（约需 1 分钟），请稍候，无需退出页面…";
-        await new Promise((r) => setTimeout(r, 50000));
+        thinkingText.value = "云端引擎休眠中，正在自动唤醒（通常 1–2 分钟），请稍候，无需退出页面…";
+        const ready = await waitForEngineReady({ timeoutMs: 180000 });
+        if (!ready) break; /* 等待超时仍未就绪，直接走后续兜底 */
       }
     }
 

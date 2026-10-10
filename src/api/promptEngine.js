@@ -202,6 +202,19 @@ export async function callEnhanceServer(payload) {
   }
 }
 
+/* 等待云端引擎就绪：免费容器休眠后唤醒期间代理返回 503，轮询 health 至 200 */
+export async function waitForEngineReady({ timeoutMs = 180000, intervalMs = 10000 } = {}) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const resp = await fetch(apiUrl("/api/health"), { method: "GET" });
+      if (resp.ok) return true;
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return false;
+}
+
 /* 流式调用：onDelta 逐字回调，onDone 收到完整结构化结果 */
 export async function callEnhanceServerStream(payload, onDelta, onDone) {
   if (typeof fetch !== "function") return false;
