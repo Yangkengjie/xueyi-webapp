@@ -8,7 +8,7 @@
 */
 
 import { mockResponse } from "./index";
-import { apiUrl } from "../utils/apiBase";
+import { apiUrl, API_BASE } from "../utils/apiBase";
 import { profileRows } from "../mock/data";
 import { getStudyStatus } from "./study";
 import {
