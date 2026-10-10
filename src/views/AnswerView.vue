@@ -17,6 +17,10 @@
         </div>
 
         <template v-else-if="message.role === 'assistant'">
+          <!-- 引擎连不上时的本地模板回答：显著标注，避免误以为是真实 AI 回答 -->
+          <div v-if="message.offline" class="offline-banner">
+            ⚠️ AI 引擎未连接（免费容器休眠中，唤醒约需 1 分钟），以下为内置模板回答；请等待约 1 分钟后点下方「重新生成」按钮恢复真实 AI 回答。
+          </div>
           <div
             v-if="getAnalysis(message.content)"
             class="analysis-card"
@@ -206,6 +210,7 @@ import {
   engineSectionsToAnswerSampleSections,
   buildUserContextFromLocal,
   callEnhanceServerStream,
+  callEnhanceServer,
 } from "../api/promptEngine";
 
 /* 追问时沿用用户上次勾选的输出模式（localStorage 存 A-I 键） */
@@ -281,7 +286,7 @@ const loadConversation = () => {
 watch(() => route.params.id, loadConversation, { immediate: true });
 
 /* 调引擎生成回答并写入对话（首次自动生成、追问、重新生成共用） */
-async function generateReply(question, images = [], modes) {
+async function generateReply(question, images = [], modes, replaceAssistantId = null) {
   if (thinking.value) return;
   thinking.value = true;
   thinkingText.value = "正在思考…";
@@ -312,26 +317,44 @@ async function generateReply(question, images = [], modes) {
       provider: mode.value === "plan" ? "kimi" : "deepseek",
     };
     let streamedChars = 0;
-    const ok = await callEnhanceServerStream(
-      payload,
-      (delta) => {
-        streamedChars += (delta || "").length;
-        streamedCharsRef.n = streamedChars;
-        clearStageTimers();   /* 已开始出字，停止阶段提示 */
-        if (streamedChars % 20 < 4) thinkingText.value = `正在生成…已收到 ${streamedChars} 字`;
-      },
-      (parsed) => { engineData = parsed; }
-    );
-    if (!ok && !engineData) {
-      /* 流式失败回退普通接口 */
+    const deltaCb = (delta) => {
+      streamedChars += (delta || "").length;
+      streamedCharsRef.n = streamedChars;
+      clearStageTimers();   /* 已开始出字，停止阶段提示 */
+      if (streamedChars % 20 < 4) thinkingText.value = `正在生成…已收到 ${streamedChars} 字`;
+    };
+
+    /* 免费容器闲置会休眠：首次请求负责唤醒，等待后自动重试一次，无需用户退出 */
+    let ok = false;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      ok = await callEnhanceServerStream(
+        payload,
+        deltaCb,
+        (parsed) => { engineData = parsed; }
+      );
+      if (ok && engineData) break;
+      if (attempt === 0) {
+        thinkingText.value = "云端引擎休眠中，正在自动唤醒（约需 1 分钟），请稍候，无需退出页面…";
+        await new Promise((r) => setTimeout(r, 50000));
+      }
+    }
+
+    let offlineTemplate = false;
+    if (!engineData) {
+      /* 流式两次未成功 → 非流式再试一次（此时首次请求已触发唤醒） */
+      engineData = await callEnhanceServer(payload);
+    }
+    if (!engineData) {
+      /* 引擎确实不可达：明确改用本地模板并显著标注，不再静默返回 */
+      offlineTemplate = true;
       const res = mode.value === "plan"
-        ? await enhanceAndPlan({ question, modeLabels: useModes, forceServer: true, provider: "kimi", context: ctx })
-        : await enhanceAndAnswer({ question, modeLabels: useModes, kind: "qa", forceServer: true, provider: "deepseek", context: ctx });
+        ? await enhanceAndPlan({ question, modeLabels: useModes, provider: "kimi", context: ctx })
+        : await enhanceAndAnswer({ question, modeLabels: useModes, kind: "qa", provider: "deepseek", context: ctx });
       engineData = res?.data || null;
     }
 
     if (!engineData || !engineData.answer?.sections?.length) {
-      throw new Error("引擎未返回有效内容");
+      throw new Error("AI 引擎未连接，请等待约 1 分钟后重试");
     }
     const content = buildEngineContent(engineData);
     const activeStyles = getActiveAnswerStyles();
@@ -344,13 +367,21 @@ async function generateReply(question, images = [], modes) {
         ...content,
         sections: (content.sections || []).map((s) => ({ ...s, content: "" })),
       };
-      addMessage(updated, "assistant", skeleton, { answerStyles: activeStyles });
+      const msgExtra = { answerStyles: activeStyles, offline: offlineTemplate };
+      if (replaceAssistantId) {
+        replaceMessage(updated, replaceAssistantId, skeleton, msgExtra);
+      } else {
+        addMessage(updated, "assistant", skeleton, msgExtra);
+      }
       saveConversation(updated);
       syncConversation();
       thinking.value = false;
+      if (offlineTemplate) toast("AI 引擎未连接，本条为内置模板回答；约 1 分钟后点「重新生成」即可恢复");
       /* 打字机：逐字填充 bullets */
-      const lastMsg = updated.messages[updated.messages.length - 1];
-      typewriterFill(updated, lastMsg, content.sections || []);
+      const lastMsg = replaceAssistantId
+        ? updated.messages.find((m) => m.id === replaceAssistantId)
+        : updated.messages[updated.messages.length - 1];
+      if (lastMsg) typewriterFill(updated, lastMsg, content.sections || []);
     } else {
       thinking.value = false;
     }
@@ -510,23 +541,21 @@ const syncConversation = () => {
 };
 
 const regenerate = (messageId) => {
-  showLoading("正在重新生成");
-  setTimeout(() => {
-    const current = getConversation(conversationId.value);
-    if (current) {
-      const answerIndex = current.messages.findIndex((m) => m.id === messageId);
-      const previousUser = answerIndex > 0
-        ? [...current.messages].slice(0, answerIndex).reverse().find((m) => m.role === "user")
-        : null;
-      const sourceQuestion = previousUser?.content || question.value;
-      const activeStyles = getActiveAnswerStyles();
-      replaceMessage(current, messageId, buildMockAnswer(sourceQuestion, mode.value, activeStyles), { regenerated: true, answerStyles: activeStyles });
-      saveConversation(current);
-      syncConversation();
-    }
-    hideLoading();
-    toast("已生成新的回答");
-  }, 900);
+  if (thinking.value) { toast("请等待当前回答生成完毕"); return; }
+  const current = getConversation(conversationId.value);
+  if (!current) return;
+  const answerIndex = current.messages.findIndex((m) => m.id === messageId);
+  const previousUser = answerIndex > 0
+    ? [...current.messages].slice(0, answerIndex).reverse().find((m) => m.role === "user")
+    : null;
+  const sourceQuestion = previousUser?.content || question.value;
+  if (!sourceQuestion) { toast("未找到原问题，无法重新生成"); return; }
+  /* 沿用该回答当时勾选的输出模式 */
+  let modes = getFollowUpModes();
+  const oldModes = current.messages[answerIndex]?.content?.analysis?.outputModes;
+  if (Array.isArray(oldModes) && oldModes.length) modes = oldModes;
+  /* 真正重走云端引擎，并原地替换该条回答 */
+  generateReply(sourceQuestion, [], modes, messageId);
 };
 
 const updateMessageFeedback = (messageId, patch) => {
@@ -811,4 +840,14 @@ const startNewChat = () => router.push({ name: "tutor", query: { new: "1" } });
 .icon-btn svg { width: 15px; height: 15px; }
 .icon-btn--on { color: var(--color-primary); }
 .answer__empty { padding: 60px 20px; text-align: center; color: var(--color-text-caption); }
+.offline-banner {
+  margin: 8px 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff4e5;
+  border: 1px solid #ffb86b;
+  color: #9a4a00;
+  font-size: 13px;
+  line-height: 1.6;
+}
 </style>
