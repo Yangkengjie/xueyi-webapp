@@ -121,6 +121,7 @@ import {
   enhanceAndAnswer,
   enhanceAndPlan,
   engineSectionsToAnswerSampleSections,
+  prewarmEngine,
 } from "../api/promptEngine";
 import { PRESET_QUESTIONS } from "../data/tcmPresetData";
 import { profileRows } from "../mock/data";
@@ -139,6 +140,8 @@ const inputBarRef = ref(null);
 const recommendList = ref(PRESET_QUESTIONS);
 
 onMounted(async () => {
+  /* 进页面即提前唤醒可能休眠的免费容器，用户打字期间完成冷启动 */
+  try { prewarmEngine(); } catch (_) {}
   try {
     const convs = getConversations();
     const history = convs.slice(0, 12).map((c) => c.question).filter(Boolean);

@@ -202,17 +202,45 @@ export async function callEnhanceServer(payload) {
   }
 }
 
-/* 等待云端引擎就绪：免费容器休眠后唤醒期间代理返回 503，轮询 health 至 200 */
-export async function waitForEngineReady({ timeoutMs = 180000, intervalMs = 10000 } = {}) {
+/* SnapDeploy 免费容器休眠后：脚本请求（fetch/curl）不会唤醒容器，
+   只有浏览器文档请求（页面导航/iframe）能触发平台自动唤醒（约 60 秒）。
+   用隐藏 iframe 发起一次跨域文档请求完成唤醒。 */
+let wakeIframe = null;
+function triggerBrowserWake() {
+  if (!API_BASE || typeof document === "undefined") return;
+  try {
+    if (wakeIframe) { try { wakeIframe.remove(); } catch (_) {} }
+    wakeIframe = document.createElement("iframe");
+    wakeIframe.style.cssText = "position:fixed;width:1px;height:1px;border:0;left:-9999px;bottom:0;opacity:0;pointer-events:none;";
+    wakeIframe.ariaHidden = "true";
+    wakeIframe.src = `${API_BASE}/?wake=${Date.now()}`;
+    document.body.appendChild(wakeIframe);
+    setTimeout(() => { try { wakeIframe?.remove(); } catch (_) {} wakeIframe = null; }, 120000);
+  } catch (_) {}
+}
+
+const healthOk = async () => {
+  try {
+    const resp = await fetch(apiUrl("/api/health"), { method: "GET", cache: "no-store" });
+    return resp.ok;
+  } catch (_) { return false; }
+};
+
+/* 确保引擎就绪：先探测；休眠则用浏览器文档请求唤醒并轮询至 200 */
+export async function waitForEngineReady({ timeoutMs = 180000, intervalMs = 5000 } = {}) {
+  if (await healthOk()) return true;
+  triggerBrowserWake();
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    try {
-      const resp = await fetch(apiUrl("/api/health"), { method: "GET" });
-      if (resp.ok) return true;
-    } catch (_) {}
     await new Promise((r) => setTimeout(r, intervalMs));
+    if (await healthOk()) return true;
   }
   return false;
+}
+
+/* 供页面进入时提前预热（不阻塞、不抛错） */
+export function prewarmEngine() {
+  healthOk().then((ok) => { if (!ok) triggerBrowserWake(); });
 }
 
 /* 流式调用：onDelta 逐字回调，onDone 收到完整结构化结果 */
