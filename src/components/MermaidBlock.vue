@@ -47,7 +47,7 @@ function baseConfig() {
       lineColor: "#5a7a68",
       secondaryColor: "#f3f7f4",
       tertiaryColor: "#ffffff",
-      fontSize: "12px",
+      fontSize: "16px",
     },
   };
 }

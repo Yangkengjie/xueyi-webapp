@@ -22,8 +22,9 @@
         @touchmove.prevent="onTouchMove"
       >
         <div
+          ref="stageEl"
           class="svg-lightbox__stage"
-          :style="{ transform: `translate(${tx}px, ${ty}px) scale(${scale})` }"
+          :style="{ width: dispW + 'px', height: dispH + 'px', transform: `translate(${tx}px, ${ty}px)` }"
           v-html="svg"
         ></div>
       </div>
@@ -33,20 +34,51 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 const props = defineProps({ visible: Boolean, svg: { type: String, default: "" } });
 const emit = defineEmits(["close"]);
 
 const scale = ref(1), tx = ref(0), ty = ref(0);
-const MIN = 0.4, MAX = 8;
+const MIN = 0.4, MAX = 12;
 function clampScale(v) { return Math.min(MAX, Math.max(MIN, v)); }
 function reset() { scale.value = 1; tx.value = 0; ty.value = 0; }
 function close() { emit("close"); }
 function zoomBy(f) { scale.value = clampScale(scale.value * f); }
 function onWheel(e) { zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12); }
-function onDbl() { scale.value = scale.value > 1.05 ? 1 : 2; }
+function onDbl() { scale.value = scale.value > 1.05 ? 1 : 2.5; }
 
-/* 复制 / 下载：把当前 svg 渲染成高清 PNG */
+/* 图的逻辑尺寸（viewBox）与适应视口的基准比例。
+   缩放直接改变 SVG 的渲染宽高（dispW/H），浏览器按最终尺寸重新光栅化矢量，
+   而不是用 transform:scale 拉伸已光栅化的位图——放大始终清晰。 */
+const stageEl = ref(null);
+const naturalW = ref(800), naturalH = ref(400);
+const fit = ref(1);
+const dispW = computed(() => naturalW.value * fit.value * scale.value);
+const dispH = computed(() => naturalH.value * fit.value * scale.value);
+
+function measure() {
+  nextTick(() => {
+    const svgEl = stageEl.value && stageEl.value.querySelector("svg");
+    if (!svgEl) return;
+    /* 优先读 SVG 自身的 width/height 属性（mermaid 输出通常有），
+       其次 viewBox，最后才用 getBoundingClientRect（避免拿到已缩放尺寸） */
+    let nw = parseFloat(svgEl.getAttribute("width"));
+    let nh = parseFloat(svgEl.getAttribute("height"));
+    const vb = svgEl.viewBox && svgEl.viewBox.baseVal;
+    if ((!nw || !nh) && vb && vb.width && vb.height) { nw = vb.width; nh = vb.height; }
+    if (!nw || !nh) { const r = svgEl.getBoundingClientRect(); nw = r.width || 800; nh = r.height || 400; }
+    naturalW.value = nw; naturalH.value = nh;
+    const vw = window.innerWidth * 0.92;
+    const vh = window.innerHeight * 0.72;
+    /* 取 max：图至少填满一个方向，避免宽图被缩到文字不可读；
+       另一方向超出视口时可拖动查看 */
+    fit.value = Math.max(vw / nw, vh / nh);
+    reset();
+  });
+}
+watch(() => [props.visible, props.svg], () => { if (props.visible) measure(); });
+
+/* 复制 / 下载：把当前 svg 渲染成高清 PNG（3 倍超采样，放大也清晰） */
 const statusMsg = ref("");
 let tipTimer = null;
 function flash(msg) {
@@ -66,7 +98,7 @@ async function renderToBlob() {
   const img = new Image();
   await new Promise((res, rej) => { img.onload = res; img.onerror = rej;
     img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml); });
-  const R = 2;   // 2 倍清晰度
+  const R = 3;   // 3 倍清晰度
   const canvas = document.createElement("canvas");
   canvas.width = w * R; canvas.height = h * R;
   const ctx = canvas.getContext("2d");
@@ -90,7 +122,7 @@ async function downloadImage() {
     a.download = "学医智用-流程图-" + Date.now() + ".png";
     a.click();
     URL.revokeObjectURL(a.href);
-    flash("已开始下载 PNG");
+    flash("已开始下载高清 PNG");
   } catch (e) { flash("下载失败：" + (e.message || "")); }
 }
 
@@ -117,7 +149,6 @@ function onTouchMove(e) {
     scale.value = clampScale(pinchScale * (dist(e.touches[0], e.touches[1]) / pinchDist));
   }
 }
-watch(() => props.visible, (v) => { if (v) reset(); });
 </script>
 
 <style scoped>
@@ -131,25 +162,30 @@ watch(() => props.visible, (v) => { if (v) reset(); });
   touch-action: none; cursor: grab;
 }
 .svg-lightbox__viewport:active { cursor: grabbing; }
-.svg-lightbox__stage { transform-origin: center center; will-change: transform; }
+.svg-lightbox__stage { will-change: transform; }
 .svg-lightbox__stage :deep(svg) {
-  /* 固定视口盒子，svg 用 preserveAspectRatio 默认等比缩放居中，
-     宽图/高图/width=100% 的图都完整显示、不塌缩、不变形 */
-  width: 88vw;
-  height: 78vh;
+  /* 尺寸由 stage 的 dispW/dispH 驱动（矢量按当前缩放重新光栅化），
+     viewBox 保证等比、不变形 */
+  width: 100%;
+  height: 100%;
+  display: block;
   background: #fff; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.4);
 }
 .svg-lightbox__bar {
   display: flex; align-items: center; gap: 10px; justify-content: center;
-  padding: 14px; color: #fff;
+  padding: 12px 10px; color: #fff;
+  background: rgba(15, 22, 18, 0.75);
+  backdrop-filter: blur(8px);
+  flex-wrap: wrap;
 }
 .lb-btn {
-  min-width: 40px; height: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,.3);
-  background: rgba(255,255,255,.12); color: #fff; font-size: 15px; cursor: pointer;
+  min-width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,.35);
+  background: rgba(255,255,255,.18); color: #fff; font-size: 17px; cursor: pointer;
+  font-weight: 600;
 }
-.lb-btn:active { background: rgba(255,255,255,.25); }
+.lb-btn:active { background: rgba(255,255,255,.35); }
 .lb-btn--text {
-  min-width: auto; padding: 0 16px;
+  min-width: auto; padding: 0 18px; font-size: 14px; font-weight: 500;
 }
 .svg-lightbox__toast {
   position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
