@@ -26,9 +26,9 @@ const ENGINE_PORT = resolveEnginePort(Number(process.env.VITE_ENGINE_PORT) || 30
 console.log(`[xueyi-webapp] 增强引擎代理目标： http://localhost:${ENGINE_PORT}  （来源：${fs.existsSync(ENGINE_PORT_FILE) ? '.engine-port.json' : '默认 3000 / VITE_ENGINE_PORT'}）`)
 
 // https://vite.dev/config/
-export default defineConfig({
-  // GitHub Pages 项目站点子路径；资源用绝对路径，保证子路由（/answer/xxx）刷新也能加载
-  base: '/xueyi-webapp/',
+export default defineConfig(({ command }) => ({
+  // 本地开发用根路径；构建 GitHub Pages 时用仓库子路径，保证子路由刷新也能加载资源
+  base: command === 'build' ? '/xueyi-webapp/' : '/',
   plugins: [vue()],
   server: {
     port: 5173,
@@ -43,4 +43,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

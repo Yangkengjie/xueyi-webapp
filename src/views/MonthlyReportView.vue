@@ -460,7 +460,8 @@ function onTypeChange(v) {
   if (v === "weekly") {
     const [y, m] = month.value.split("-").map(Number);
     const midDate = fmt(new Date(y, m - 1, 15));
-    router.push({ name: "weeklyReport", query: { start: midDate } });
+    // 月 → 周 是同层视图切换，用 replace 不堆积历史
+    router.replace({ name: "weeklyReport", query: { start: midDate } });
   }
 }
 

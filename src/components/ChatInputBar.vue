@@ -19,14 +19,29 @@
         </svg>
       </button>
       <div class="chat-input__box">
-        <input
+        <textarea
+          ref="fieldRef"
           v-model="text"
           class="chat-input__field"
+          rows="1"
           :placeholder="placeholder"
-          @keyup.enter="submit"
-        />
+          @input="autoResize"
+          @keydown="onKeydown"
+        ></textarea>
       </div>
+      <!-- 生成中：发送按钮变为"停止"按钮（参考 DeepSeek），点击中断生成 -->
       <button
+        v-if="generating"
+        class="chat-input__btn chat-input__stop"
+        aria-label="停止生成"
+        @click="onStop"
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+          <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" />
+        </svg>
+      </button>
+      <button
+        v-else
         class="chat-input__btn chat-input__send"
         :class="{ 'chat-input__send--ready': canSend }"
         aria-label="发送"
@@ -52,17 +67,47 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, nextTick } from "vue";
 
 const props = defineProps({
   placeholder: { type: String, default: "输入信息……" },
+  /* 是否正在生成（流式）：为 true 时显示"停止"按钮 */
+  generating: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(["send"]);
+const emit = defineEmits(["send", "stop"]);
+
+const onStop = () => emit("stop");
+
+/* 供外部聚焦输入框（编辑问题时） */
+const focus = () => {
+  nextTick(() => {
+    fieldRef.value?.focus();
+    fieldRef.value?.setSelectionRange(text.value.length, text.value.length);
+  });
+};
 
 const text = ref("");
 const images = ref([]); // [{url, file}]
 const fileInput = ref(null);
+const fieldRef = ref(null);
+
+/* 输入框随内容自动增高，到上限（约 5 行）后内部滚动——类似微信 */
+const MAX_TEXTAREA_H = 120;
+const autoResize = () => {
+  const el = fieldRef.value;
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, MAX_TEXTAREA_H) + "px";
+  el.style.overflowY = el.scrollHeight > MAX_TEXTAREA_H ? "auto" : "hidden";
+};
+/* Enter 发送、Shift+Enter 换行；中文输入法组词中（isComposing）不发送 */
+const onKeydown = (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    submit();
+  }
+};
 
 const canSend = computed(() => text.value.trim() || images.value.length);
 
@@ -84,18 +129,20 @@ const submit = () => {
   emit("send", { text: value, images: images.value.map((i) => i.url) });
   text.value = "";
   images.value = [];
+  nextTick(autoResize);
 };
 
 /* 供外部（如 TutorView 点选快捷问题卡片）注入问题文本 */
 const setText = (value) => {
   text.value = String(value || "");
+  nextTick(autoResize);
 };
 const clear = () => {
   text.value = "";
   images.value.forEach((i) => URL.revokeObjectURL(i.url));
   images.value = [];
 };
-defineExpose({ setText, clear });
+defineExpose({ setText, clear, focus });
 </script>
 
 <style scoped>
@@ -149,7 +196,7 @@ defineExpose({ setText, clear });
 
 .chat-input__row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;   /* 多行输入时图片/发送按钮贴底 */
   gap: 10px;
 }
 
@@ -163,8 +210,15 @@ defineExpose({ setText, clear });
 
 .chat-input__field {
   width: 100%;
+  display: block;
   font-size: var(--font-size-body);
+  line-height: 1.5;
   color: var(--color-text);
+  font-family: inherit;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
 }
 
 .chat-input__field::placeholder {
@@ -179,5 +233,16 @@ defineExpose({ setText, clear });
 
 .chat-input__send--ready {
   color: var(--color-primary);
+}
+
+/* 停止生成按钮：醒目方形 */
+.chat-input__stop {
+  color: var(--color-text-primary, #2b2f38);
+  padding: 5px;
+  animation: stopPulse 1.8s ease-in-out infinite;
+}
+@keyframes stopPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 </style>

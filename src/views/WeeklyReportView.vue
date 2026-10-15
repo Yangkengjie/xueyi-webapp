@@ -436,7 +436,8 @@ function onTypeChange(v) {
   if (v === "monthly") {
     const d = new Date(startDate.value);
     const pad = (n) => (n < 10 ? "0" + n : "" + n);
-    router.push({ name: "monthlyReport", query: { month: `${d.getFullYear()}-${pad(d.getMonth() + 1)}` } });
+    // 周 → 月 是同层视图切换，用 replace 不堆积历史，避免返回时在周/月间反复横跳
+    router.replace({ name: "monthlyReport", query: { month: `${d.getFullYear()}-${pad(d.getMonth() + 1)}` } });
   }
 }
 

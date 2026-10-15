@@ -61,8 +61,9 @@
       </div>
     </div>
 
-    <!-- 输出模式选择：仅答疑 tab，置于输入框上方 -->
+    <!-- 输出模式选择：仅答疑 tab，置于输入框上方；规划固定用直接精准模式 -->
     <div
+      v-if="tab === 'qa'"
       class="tutor__modes"
       role="group"
       aria-label="回答输出模式选择"
@@ -285,7 +286,7 @@ const onSend = async ({ text, images }) => {
 
   sessionQuestion.value = question;
   sending.value = true;
-  persistStyles();
+  if (tab.value === "qa") persistStyles();   /* 规划固定直接精准，不回写答疑设置 */
 
   const conversation = createConversation({ question, mode: tab.value });
   addMessage(conversation, "user", question, { images });
@@ -294,7 +295,8 @@ const onSend = async ({ text, images }) => {
   conversation.pendingAnswer = true;
   conversation.pendingQuestion = question;
   conversation.pendingImages = images;
-  conversation.pendingModes = selectedModes.value.slice();
+  /* 规划固定直接精准模式；答疑沿用勾选 */
+  conversation.pendingModes = tab.value === "plan" ? ["直接精准模式"] : selectedModes.value.slice();
   conversation.pendingMode = tab.value;
   saveConversation(conversation);
 

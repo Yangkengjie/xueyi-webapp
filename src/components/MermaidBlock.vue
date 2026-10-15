@@ -40,6 +40,12 @@ function baseConfig() {
     securityLevel: "loose",
     theme: "base",
     fontFamily: "inherit",
+    /* 节点标签用纯 SVG <text> 而非 foreignObject+HTML：
+       1) 矢量文字任意缩放都清晰，不会放大模糊；
+       2) 避免 foreignObject 在超大合成层里光栅化失败、大图打不开。
+       mermaid 12 起 flowchart.htmlLabels 已废弃，必须用根级 htmlLabels。 */
+    htmlLabels: false,
+    flowchart: { useMaxWidth: true },
     themeVariables: {
       primaryColor: "#e8f1ec",
       primaryTextColor: "#1f3a2c",

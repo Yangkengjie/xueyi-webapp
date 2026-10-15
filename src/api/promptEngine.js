@@ -78,6 +78,7 @@ export function buildUserContextFromLocal() {
     studentGrade: `${grade}·${major}${school ? `·${school}` : ""}`,
     currentCourse: "中医基础理论 / 方剂学",
     userPreference: persona,
+    userNotes: getUserNotes(),
     studyStats: {
       learningDays: studyStatus.learningDays || 0,
       totalHours: studyStatus.totalHours || 0,
@@ -86,6 +87,34 @@ export function buildUserContextFromLocal() {
       summary: bits.join("、"),
     },
   };
+}
+
+/* ========== USER.md 式：跨会话记住用户明确纠正 / 强调过的要点 ==========
+   存在 localStorage，随每次提问以 userNotes 带入引擎，让 AI 长期尊重用户偏好，
+   而不是只在当前会话历史里记得。 */
+const NOTES_KEY = "xy-user-notes";
+const CORRECTION_RE = /不对|错了|不是这样|理解错|搞错|应该是|记错|误人子弟|纠正/;
+
+export function getUserNotes() {
+  try {
+    const list = JSON.parse(localStorage.getItem(NOTES_KEY) || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch (_) { return []; }
+}
+
+/* 判断一句话是否像"纠正/强调"，是的话把要点记入长期记忆 */
+export function maybeRememberNote(text) {
+  try {
+    const clean = String(text || "")
+      .replace(/^>.*$/gm, "") // 去掉引用块
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!clean || !CORRECTION_RE.test(clean)) return;
+    const list = getUserNotes();
+    if (list.includes(clean)) return;
+    list.unshift(clean);
+    localStorage.setItem(NOTES_KEY, JSON.stringify(list.slice(0, 10)));
+  } catch (_) {}
 }
 
 /* ========== 二、settings keys -> engine selectedOutputs labels 转换 ========== */
@@ -244,19 +273,19 @@ export function prewarmEngine() {
 }
 
 /* 流式调用：onDelta 逐字回调，onDone 收到完整结构化结果 */
-export async function callEnhanceServerStream(payload, onDelta, onDone) {
+export async function callEnhanceServerStream(payload, onDelta, onDone, onAnalysis, onReview, onReasoning, onSkill, signal) {
   if (typeof fetch !== "function") return false;
   try {
     const resp = await fetch(apiUrl("/api/enhance-stream"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload || {}),
+      signal,
     });
     if (!resp.ok || !resp.body) return false;
     const reader = resp.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let buffer = "";
-    let eventName = "";
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -270,16 +299,26 @@ export async function callEnhanceServerStream(payload, onDelta, onDone) {
           else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
         }
         if (!dataStr) continue;
-        try {
-          const data = JSON.parse(dataStr);
-          if (ev === "delta" && data.text) onDelta?.(data.text);
-          else if (ev === "done") onDone?.(normalizeEngineResponse(data));
-          else if (ev === "error") throw new Error(data.msg || "流式错误");
-        } catch (_) {}
+        let data;
+        try { data = JSON.parse(dataStr); } catch (_) { continue; }
+        if (ev === "delta" && data.text) onDelta?.(data.text);
+        else if (ev === "reasoning" && data.text) onReasoning?.(data.text);
+        else if (ev === "skill") onSkill?.(data);
+        else if (ev === "analysis") onAnalysis?.(data);
+        else if (ev === "review") onReview?.(data);
+        else if (ev === "done") onDone?.(normalizeEngineResponse(data));
+        else if (ev === "error") {
+          /* 后端明确报错（如正文生成失败）：中断读取并返回 "error"，
+             不再被内层 catch 吞掉；调用方据此兜底或提示重新生成 */
+          try { await reader.cancel(); } catch (_) {}
+          return { error: data.msg || "流式错误" };
+        }
       }
     }
     return true;
-  } catch (_) {
+  } catch (err) {
+    /* 用户主动停止：返回 "aborted"，调用方据此保留已生成内容、不走兜底 */
+    if (signal?.aborted || err?.name === "AbortError") return "aborted";
     return false;
   }
 }
