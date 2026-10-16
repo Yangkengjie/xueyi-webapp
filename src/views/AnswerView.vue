@@ -495,6 +495,12 @@ async function generateReply(question, images = [], modes, replaceAssistantId = 
   }, t));
   const clearStageTimers = () => stageTimers.forEach(clearTimeout);
   try {
+    /* 发请求前先确保引擎就绪：免费容器休眠时自动唤醒（约 60-90s），
+       否则 POST 直接 503 只能给模板兜底。健康时探测秒回、无感知。 */
+    thinkingText.value = "正在连接 AI 引擎（若长时间未使用，唤醒约需 1 分钟）…";
+    const engineReady = await waitForEngineReady({ timeoutMs: 150000, intervalMs: 5000 });
+    if (engineReady) thinkingText.value = "正在思考…";
+
     const ctx = buildUserContextFromLocal();
     const useModes = (Array.isArray(modes) && modes.length) ? modes : getFollowUpModes();
     const provider = mode.value === "plan" ? "kimi" : "deepseek";
